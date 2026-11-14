@@ -18,3 +18,5 @@ STEAM_REQUEST_ERROR_MESSAGE: str = (
 STEAM_API_ERROR_MESSAGE: str = "Erro ao consultar a Steam."
 
 INVALID_APP_ID_TYPE_MESSAGE: str = "O ID do jogo deve ser um número inteiro."
+
+LOG_EMPTY_ERROR_MESSAGE: str = "O log da pipeline não pode estar vazio."
