@@ -24,10 +24,9 @@ def health() -> dict[str, str]:
     return {"status": "healthy"}
 
 
-@app.get("/games/{app_id}/news", response_model=list[SteamGameNews])
-async def get_game_news_endpoint(app_id: int) -> list[SteamGameNews]:
+async def _news_response(app_id: int, version: int) -> list[SteamGameNews]:
     try:
-        return await get_game_news(app_id)
+        return await get_game_news(app_id, version)
     except ValueError as error:
         raise HTTPException(
             status_code=400,
@@ -49,3 +48,13 @@ async def get_game_news_endpoint(app_id: int) -> list[SteamGameNews]:
             status_code=400,
             detail=str(error),
         ) from error
+
+
+@app.get("/games/{app_id}/news", response_model=list[SteamGameNews])
+async def get_game_news_endpoint(app_id: int) -> list[SteamGameNews]:
+    return await _news_response(app_id, 2)
+
+
+@app.get("/games/{app_id}/news/v1", response_model=list[SteamGameNews])
+async def get_game_news_v1_endpoint(app_id: int) -> list[SteamGameNews]:
+    return await _news_response(app_id, 1)

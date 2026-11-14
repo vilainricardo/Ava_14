@@ -59,7 +59,7 @@ def test_get_game_news_returns_success() -> None:
 
     # Verifica se a função simulada foi chamada uma única vez,
     # e se recebeu corretamente o ID 730 como argumento.
-    mock_get_game_news.assert_awaited_once_with(730)
+    mock_get_game_news.assert_awaited_once_with(730, 2)
 
 
 def test_get_game_news_returns_bad_gateway() -> None:
@@ -93,7 +93,7 @@ def test_get_game_news_returns_bad_gateway() -> None:
     assert response.json() == {"detail": STEAM_API_ERROR_MESSAGE}
 
     # Verifica se o serviço foi chamado uma única vez.
-    mock_get_game_news.assert_awaited_once_with(730)
+    mock_get_game_news.assert_awaited_once_with(730, 2)
 
 
 def test_get_game_news_returns_bad_gateway_on_http_status_error() -> None:
@@ -134,7 +134,7 @@ def test_get_game_news_returns_bad_gateway_on_http_status_error() -> None:
     assert response.json() == {"detail": "Notícia não encontrada."}
 
     # Verifica se o serviço foi chamado uma única vez com o ID 730.
-    mock_get_game_news.assert_awaited_once_with(730)
+    mock_get_game_news.assert_awaited_once_with(730, 2)
 
 
 def test_get_game_news_returns_bad_gateway_on_steam_server_error() -> None:
@@ -175,7 +175,7 @@ def test_get_game_news_returns_bad_gateway_on_steam_server_error() -> None:
     assert response.json() == {"detail": "Erro interno na Steam."}
 
     # Verifica se o serviço foi chamado uma única vez.
-    mock_get_game_news.assert_awaited_once_with(730)
+    mock_get_game_news.assert_awaited_once_with(730, 2)
 
 
 def test_get_game_news_returns_bad_request() -> None:
@@ -197,4 +197,27 @@ def test_get_game_news_returns_bad_request() -> None:
     assert response.json() == {"detail": INVALID_APP_ID_MESSAGE}
 
     # Verifica se o serviço foi chamado uma única vez com app_id igual a zero.
-    mock_get_game_news.assert_awaited_once_with(0)
+    mock_get_game_news.assert_awaited_once_with(0, 2)
+
+
+def test_get_game_news_v1_returns_success() -> None:
+    expected_news = [
+        {
+            "gid": "12345",
+            "title": "Notícia de teste",
+            "url": "https://example.com/news",
+            "author": "Steam",
+            "contents": "Conteúdo de teste",
+        }
+    ]
+
+    with patch(
+        "app.main.get_game_news",
+        new_callable=AsyncMock,
+    ) as mock_get_game_news:
+        mock_get_game_news.return_value = expected_news
+        response = client.get("/games/730/news/v1")
+
+    assert response.status_code == 200
+    assert response.json() == expected_news
+    mock_get_game_news.assert_awaited_once_with(730, 1)

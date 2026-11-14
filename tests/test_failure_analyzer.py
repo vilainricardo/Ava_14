@@ -50,6 +50,8 @@ def test_analyze_failure_returns_agent_analysis(
     assert options.model == "composer-2.5"
     assert options.api_key == "cursor_test"
     assert options.tools == []
+    assert options.local.custom_tools is not None
+    assert "consultar_rota_steam" in options.local.custom_tools
 
 
 def test_analyze_failure_includes_diff(monkeypatch: pytest.MonkeyPatch) -> None:

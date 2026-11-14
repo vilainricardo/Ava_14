@@ -9,7 +9,7 @@ from app.exceptions.error_messages import (
     STEAM_NEWS_UNAVAILABLE_MESSAGE,
     STEAM_REQUEST_ERROR_MESSAGE,
 )
-from app.services.steam_endpoints import GET_GAME_NEWS, STEAM_WEB_API_URL
+from app.services.steam_endpoints import STEAM_WEB_API_URL, SteamRoute
 
 
 class SteamGameNews(BaseModel):
@@ -30,12 +30,19 @@ class SteamNewsResponse(BaseModel):
 
 async def get_game_news(
     app_id: int,
+    version: int = 2,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> list[SteamGameNews]:
+    """Consulta as notícias da versão informada.
+
+    O valor padrão 2 é a versão chamada pela rota principal. Ele não
+    significa que a Steam ainda considera essa versão a mais recente.
+    """
     if app_id <= 0:
         raise ValueError(INVALID_APP_ID_MESSAGE)
 
-    url: str = f"{STEAM_WEB_API_URL}{GET_GAME_NEWS}"
+    route: SteamRoute = SteamRoute("ISteamNews", "GetNewsForApp", version)
+    url: str = f"{STEAM_WEB_API_URL}{route.path}"
 
     async with httpx.AsyncClient(timeout=15.0, transport=transport) as client:
         response: httpx.Response = await client.get(

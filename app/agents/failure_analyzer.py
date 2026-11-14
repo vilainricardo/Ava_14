@@ -1,7 +1,16 @@
 import asyncio
 import os
+from collections.abc import Mapping
+from typing import Any
 
-from cursor_sdk import AgentOptions, CursorAgentError, LocalAgentOptions, RunResult
+from cursor_sdk import (
+    AgentOptions,
+    CursorAgentError,
+    CustomTool,
+    CustomToolContext,
+    LocalAgentOptions,
+    RunResult,
+)
 from cursor_sdk.asyncio import AsyncAgent, AsyncClient
 
 from app.config import get_cursor_api_key
@@ -11,6 +20,7 @@ from app.exceptions.error_messages import (
     FAILURE_ANALYSIS_START_ERROR_MESSAGE,
     LOG_EMPTY_ERROR_MESSAGE,
 )
+from app.services.steam_catalog import describe_route
 
 # Modelo usado nas análises. O SDK exige um modelo na execução local.
 ANALYSIS_MODEL: str = "composer-2.5"
@@ -88,9 +98,48 @@ def _agent_options(api_key: str) -> AgentOptions:
     return AgentOptions(
         api_key=api_key,
         model=ANALYSIS_MODEL,
+        # Sem ferramentas internas, o agente não edita arquivos nem executa
+        # comandos. A única ferramenta é a consulta ao catálogo da Steam.
         tools=[],
-        local=LocalAgentOptions(cwd=os.getcwd()),
+        local=LocalAgentOptions(
+            cwd=os.getcwd(),
+            custom_tools={
+                "consultar_rota_steam": CustomTool(
+                    description=(
+                        "Consulta o catálogo da Steam e informa se a rota "
+                        "pedida está desatualizada, qual é a versão mais alta "
+                        "e o que mudou nos parâmetros."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "interface": {"type": "string"},
+                            "method": {"type": "string"},
+                            "version": {"type": "integer"},
+                        },
+                        "required": ["interface", "method", "version"],
+                    },
+                    execute=_consultar_rota_steam,
+                )
+            },
+        ),
     )
+
+
+def _consultar_rota_steam(
+    args: Mapping[str, Any],
+    context: CustomToolContext,
+) -> str:
+    """Ferramenta do agente para conferir uma rota no catálogo da Steam."""
+    del context
+    interface: object = args.get("interface")
+    method: object = args.get("method")
+    version: object = args.get("version")
+    if not isinstance(interface, str) or not isinstance(method, str):
+        return "Informe interface e method para consultar a rota da Steam."
+    if isinstance(version, bool) or not isinstance(version, int):
+        return "Informe a version numérica da rota da Steam."
+    return describe_route(interface, method, version)
 
 
 def _execute_analysis(prompt: str, options: AgentOptions) -> RunResult:
@@ -132,6 +181,9 @@ def _build_prompt(log: str, diff: str | None) -> str:
     sections = [
         "Você analisa uma falha de pipeline CI/CD para um desenvolvedor.",
         "Não altere arquivos, não execute comandos e não aplique correções.",
+        "Se o log falar de uma rota da Steam desatualizada, use a ferramenta",
+        "consultar_rota_steam com interface, method e version.",
+        "Informe a rota obsoleta, a rota atual e a diferença dos parâmetros.",
         "Responda em português, com estes tópicos:",
         "- Descrição da falha",
         "- Possível causa raiz",
