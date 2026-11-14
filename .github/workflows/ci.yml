@@ -13,8 +13,8 @@ on:
   # Executa o pipeline quando um Pull Request é aberto ou atualizado
   # tendo como destino a branch development.
   pull_request:
-    branches:
-      - development
+    #branches:
+      #- development
 
 # Define os trabalhos (jobs) que serão executados pelo workflow.
 jobs:
