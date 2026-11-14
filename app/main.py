@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
-
+from app.exceptions.error_messages import STEAM_REQUEST_ERROR_MESSAGE
 from app.services.steam_service import (
     SteamGameNews,
     get_game_news,
@@ -39,5 +39,5 @@ async def get_game_news_endpoint(app_id: int) -> list[SteamGameNews]:
     except httpx.HTTPError as error:
         raise HTTPException(
             status_code=502,
-            detail="Erro ao consultar a Steam.",
+            detail=STEAM_REQUEST_ERROR_MESSAGE,
         ) from error

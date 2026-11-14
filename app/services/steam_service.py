@@ -1,7 +1,7 @@
 
 import httpx
 from pydantic import BaseModel, ConfigDict, TypeAdapter
-from app.exceptions.error_messages import INVALID_APP_ID_MESSAGE, STEAM_NEWS_LIST_ERROR_MESSAGE, STEAM_INVALID_RESPONSE_MESSAGE
+from app.exceptions.error_messages import INVALID_APP_ID_MESSAGE, STEAM_NEWS_LIST_ERROR_MESSAGE, STEAM_INVALID_RESPONSE_MESSAGE, STEAM_NEWS_NOT_FOUND_MESSAGE, STEAM_NEWS_UNAVAILABLE_MESSAGE, STEAM_REQUEST_ERROR_MESSAGE
 
 from app.services.steam_endpoints import GET_GAME_NEWS, STEAM_WEB_API_URL
 
@@ -44,7 +44,28 @@ async def get_game_news(
                 "maxlength": 300,
             },
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code == 404:
+                raise httpx.HTTPStatusError(
+                    STEAM_NEWS_NOT_FOUND_MESSAGE,
+                    request=error.request,
+                    response=error.response,
+                ) from error
+
+            if error.response.status_code == 500:
+                raise httpx.HTTPStatusError(
+                    STEAM_NEWS_UNAVAILABLE_MESSAGE,
+                    request=error.request,
+                    response=error.response,
+                ) from error
+
+            raise httpx.HTTPStatusError(
+                STEAM_REQUEST_ERROR_MESSAGE,
+                request=error.request,
+                response=error.response,
+            ) from error
 
         payload: dict[str, object] = TypeAdapter(
             dict[str, object]
