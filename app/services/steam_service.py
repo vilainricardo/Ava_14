@@ -2,8 +2,7 @@
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 import httpx
 
-from app.config import get_steam_api_url
-from app.services.steam_endpoints import GET_GAME_NEWS
+from app.services.steam_endpoints import GET_GAME_NEWS, STEAM_WEB_API_URL
 
 
 class SteamGameNews(BaseModel):
@@ -26,8 +25,7 @@ async def get_game_news(app_id: int) -> list[SteamGameNews]:
     if app_id <= 0:
         raise ValueError("O AppID deve ser maior que zero.")
 
-    base_url: str = get_steam_api_url()
-    url: str = f"{base_url}{GET_GAME_NEWS}"
+    url: str = f"{STEAM_WEB_API_URL}{GET_GAME_NEWS}"
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         response: httpx.Response = await client.get(
