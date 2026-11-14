@@ -1,5 +1,6 @@
 import asyncio
 import os
+import subprocess
 from collections.abc import Mapping
 from typing import Any
 
@@ -13,12 +14,13 @@ from cursor_sdk import (
 )
 from cursor_sdk.asyncio import AsyncAgent, AsyncClient
 
-from app.config import get_cursor_api_key
+from app.config import BASE_DIR, get_cursor_api_key
 from app.exceptions.error_messages import (
     CURSOR_API_KEY_MISSING_MESSAGE,
     FAILURE_ANALYSIS_INCOMPLETE_MESSAGE,
     FAILURE_ANALYSIS_START_ERROR_MESSAGE,
     LOG_EMPTY_ERROR_MESSAGE,
+    MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE,
 )
 from app.services.steam_catalog import describe_route
 
@@ -86,6 +88,41 @@ def analyze_failure(log: str, diff: str | None = None) -> str:
         raise FailureAnalysisError(message)
 
     return result.result.strip()
+
+
+def explain_maintenance_warning(warning: str) -> str:
+    """Pede ao agente uma explicação para um aviso de manutenção.
+
+    O log junta o aviso e os últimos commits. Se a chave, o Git ou o
+    agente falharem, devolve um texto curto em vez de interromper a
+    pipeline.
+    """
+    log: str = f"{warning.strip()}\n\nCommits recentes:\n{_recent_commits()}"
+    try:
+        return analyze_failure(log)
+    except (FailureAnalysisError, ValueError, OSError) as error:
+        return f"{MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE} {error}"
+
+
+def _recent_commits() -> str:
+    """Lê os cinco commits mais recentes sem deixar o agente executar o Git."""
+    try:
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            ["git", "log", "-5", "--oneline"],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "Os commits recentes não puderam ser lidos."
+
+    if completed.returncode != 0:
+        return "Os commits recentes não puderam ser lidos."
+
+    output: str = completed.stdout.strip()
+    return output or "Não há commits recentes."
 
 
 def _agent_options(api_key: str) -> AgentOptions:
@@ -184,6 +221,8 @@ def _build_prompt(log: str, diff: str | None) -> str:
         "Se o log falar de uma rota da Steam desatualizada, use a ferramenta",
         "consultar_rota_steam com interface, method e version.",
         "Informe a rota obsoleta, a rota atual e a diferença dos parâmetros.",
+        "Se o log incluir commits recentes, use-os para explicar o que",
+        "pode ter acontecido, o que pode ser feito e os riscos.",
         "Responda em português, com estes tópicos:",
         "- Descrição da falha",
         "- Possível causa raiz",

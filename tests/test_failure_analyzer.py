@@ -4,12 +4,17 @@ from unittest.mock import patch
 import pytest
 from cursor_sdk import CursorAgentError
 
-from app.agents.failure_analyzer import FailureAnalysisError, analyze_failure
+from app.agents.failure_analyzer import (
+    FailureAnalysisError,
+    analyze_failure,
+    explain_maintenance_warning,
+)
 from app.exceptions.error_messages import (
     CURSOR_API_KEY_MISSING_MESSAGE,
     FAILURE_ANALYSIS_INCOMPLETE_MESSAGE,
     FAILURE_ANALYSIS_START_ERROR_MESSAGE,
     LOG_EMPTY_ERROR_MESSAGE,
+    MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE,
 )
 
 
@@ -44,6 +49,7 @@ def test_analyze_failure_returns_agent_analysis(
     message = prompt.call_args.args[0]
     assert log in message
     assert "Descrição da falha" in message
+    assert "commits recentes" in message
 
     # O segundo argumento carrega modelo, chave e a lista de ferramentas.
     options = prompt.call_args.args[1]
@@ -184,3 +190,30 @@ def test_analyze_failure_reports_incomplete_run(
         ),
     ):
         analyze_failure("AssertionError: assert 1 == 2")
+
+
+def test_explain_maintenance_warning_sends_commits_to_agent() -> None:
+    """O aviso e os commits recentes entram no log enviado ao agente."""
+    warning = "A rota /ISteamNews/GetNewsForApp/v1/ está desatualizada."
+
+    with patch(
+        "app.agents.failure_analyzer.analyze_failure",
+        return_value="A v1 ficou para trás do catálogo.",
+    ) as agent:
+        result = explain_maintenance_warning(warning)
+
+    assert result == "A v1 ficou para trás do catálogo."
+    log = agent.call_args.args[0]
+    assert warning in log
+    assert "Commits recentes:" in log
+
+
+def test_explain_maintenance_warning_survives_agent_failure() -> None:
+    """Uma falha do agente vira texto e não interrompe quem chamou."""
+    with patch(
+        "app.agents.failure_analyzer.analyze_failure",
+        side_effect=FailureAnalysisError("chave ausente"),
+    ):
+        result = explain_maintenance_warning("A rota está desatualizada.")
+
+    assert result.startswith(MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE)

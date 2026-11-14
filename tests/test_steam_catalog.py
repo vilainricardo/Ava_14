@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import httpx
 import pytest
 
@@ -141,10 +143,15 @@ def test_publish_maintenance_warning_uses_github_annotation(
 ) -> None:
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
 
-    with pytest.warns(UserWarning, match="precisa de manutenção"):
+    with (
+        patch("app.agents.failure_analyzer.analyze_failure") as agent,
+        pytest.warns(UserWarning, match="precisa de manutenção"),
+    ):
         publish_maintenance_warning(
             "O sistema está funcionando, mas precisa de manutenção."
         )
+
+    agent.assert_not_called()
 
     captured = capsys.readouterr()
     assert captured.out.startswith("::warning::")

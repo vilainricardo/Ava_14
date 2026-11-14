@@ -1,5 +1,8 @@
+import os
+
 import pytest
 
+from app.agents.failure_analyzer import explain_maintenance_warning
 from app.services.steam_catalog import (
     compare_route,
     fetch_catalog,
@@ -29,5 +32,12 @@ def test_steam_route_stays_maintainable(
     responde. O aviso pede manutenção sem derrubar a pipeline.
     """
     check = compare_route(route, steam_catalog)
-    if check.warning is not None:
-        publish_maintenance_warning(check.warning)
+    if check.warning is None:
+        return
+
+    publish_maintenance_warning(check.warning)
+    explanation: str = explain_maintenance_warning(check.warning)
+    print(explanation, flush=True)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        notice: str = " ".join(explanation.split())
+        print(f"::notice::{notice}", flush=True)
