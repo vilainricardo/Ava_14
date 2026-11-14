@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+.pytest_cache/
+.env
+*.pyc
+maintenance-report.md
+failure-report.md

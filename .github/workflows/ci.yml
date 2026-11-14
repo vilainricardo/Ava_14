@@ -1,0 +1,201 @@
+# Nome do workflow que aparecerá na aba Actions do GitHub.
+name: CI
+
+# Define os eventos que iniciam a execução do workflow.
+# Só um Pull Request dispara a pipeline. Um push direto não executa os jobs.
+on:
+
+  # Executa o pipeline quando um Pull Request é aberto ou atualizado
+  # tendo como destino a branch development.
+  pull_request:
+    #branches:
+      #- development
+
+# Permissões do GITHUB_TOKEN desta execução.
+# contents: read permite obter o código no checkout.
+# pull-requests: write permite publicar o aviso de manutenção no PR.
+permissions:
+  contents: read
+  pull-requests: write
+
+# Define os trabalhos (jobs) que serão executados pelo workflow.
+jobs:
+
+  # Identificador interno do job. Escolhemos o nome "tests".
+  tests:
+
+    # Define o sistema operacional da máquina virtual que executará o job.
+    # ubuntu-latest significa que será usada a versão estável mais recente
+    # do ambiente Ubuntu disponibilizado pelo GitHub Actions.
+    runs-on: ubuntu-latest
+
+    # O secret do repositório só chega ao Pytest se o job o declarar.
+    # get_cursor_api_key lê CURSOR_API_KEY na hora da análise do aviso.
+    env:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+
+    # Lista de etapas executadas dentro do job, na ordem apresentada.
+    steps:
+
+      # Etapa 1: obtém o código-fonte do repositório.
+      - name: Checkout repository
+        # A action checkout permite acessar os arquivos do repositório
+        # dentro da máquina virtual.
+        uses: actions/checkout@v4
+
+      # Etapa 2: prepara o ambiente Python.
+      - name: Set up Python
+        # A action setup-python instala e configura a versão do Python.
+        uses: actions/setup-python@v5
+        with:
+          # Versão do Python utilizada para executar o projeto.
+          python-version: "3.12"
+
+      # Etapa 3: instala as dependências do projeto.
+      - name: Install dependencies
+        # O comando run executa comandos de terminal na máquina virtual.
+        run: |
+          # Atualiza o gerenciador de pacotes pip.
+          python -m pip install --upgrade pip
+
+          # Instala os pacotes listados no requirements.txt.
+          pip install -r requirements.txt
+
+      # Etapa 4: executa os testes automatizados.
+      - name: Run tests
+        # A falha controlada fica no job controlled_failure. Aqui o
+        # Pytest a encontra sem CI_CONTROLLED_FAILURE e a deixa de lado.
+        run: pytest -v
+
+      # Etapa 4b: publica o relatório de manutenção no Pull Request.
+      # O ::warning:: sai neste passo, fora do Pytest, para a Actions
+      # criar a anotação no check do PR. Uma falha aqui não derruba o job.
+      - name: Publish maintenance warning on pull request
+        if: hashFiles('maintenance-report.md') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Sem -e, uma falha do gh chega no aviso abaixo em vez de abortar o passo.
+          set +e
+          # Cada seção "### Aviso" vira uma anotação. O relatório sem
+          # avisos não imprime nada e o check continua só com o comentário.
+          awk '
+            /^### Aviso$/ { capture = 1; next }
+            /^### / { capture = 0 }
+            capture && NF { print }
+          ' maintenance-report.md | while IFS= read -r line; do
+            safe="${line//%/%25}"
+            safe="${safe//$'\r'/%0D}"
+            echo "::warning title=Manutenção da Steam::${safe}"
+          done
+
+          # O marcador identifica o comentário que esta pipeline atualiza.
+          MARKER="<!-- ava14-steam-maintenance -->"
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+
+          # Procura um comentário já publicado por uma execução anterior.
+          COMMENT_ID="$(gh api --paginate "repos/${REPO}/issues/${PR}/comments" --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -n 1)"
+
+          if [ -n "${COMMENT_ID}" ]; then
+            # Atualiza o comentário existente com o relatório desta execução.
+            jq -n --rawfile body maintenance-report.md '{body: $body}' | gh api --method PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" --input -
+          else
+            # Cria o primeiro comentário a partir do arquivo gerado pelo Pytest.
+            gh pr comment "${PR}" --body-file maintenance-report.md
+          fi
+          status=$?
+          if [ "${status}" -ne 0 ]; then
+            echo "::warning::O aviso de manutenção não pôde ser publicado no pull request."
+            exit 0
+          fi
+
+      # Etapa 5: verifica a qualidade e a formatação do código.
+      - name: Check code with Ruff
+        run: |
+          # Analisa o código em busca de problemas identificados pelo Ruff.
+          ruff check .
+
+          # Verifica se os arquivos já estão formatados corretamente.
+          # O comando --check apenas verifica, não modifica os arquivos.
+          ruff format --check .
+
+      # Etapa 6: verifica os tipos estáticos do código.
+      - name: Check types with MyPy
+        # O parâmetro --strict ativa verificações mais rigorosas.
+        # app/ indica que a análise será feita no diretório da aplicação.
+        run: mypy --strict app/
+
+  # Job separado para a falha proposital. O check fica vermelho e o
+  # job tests continua verde, publicando o aviso de manutenção.
+  controlled_failure:
+
+    name: Falha controlada
+
+    runs-on: ubuntu-latest
+
+    # A análise da falha lê a mesma chave do job de testes.
+    env:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # O agente recebe os commits recentes junto com o log da falha.
+          fetch-depth: 5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # CI_CONTROLLED_FAILURE libera o teste que levanta AssertionError.
+      # O teste pede a análise antes de relançar o erro.
+      - name: Run controlled failure
+        run: pytest -v tests/test_controlled_failure.py
+        env:
+          CI_CONTROLLED_FAILURE: "true"
+
+      # O Pytest deixa o job vermelho. Este passo ainda publica a análise.
+      - name: Publish failure analysis on pull request
+        if: failure() && hashFiles('failure-report.md') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          awk '
+            /^### Explicação$/ { capture = 1; next }
+            /^### / { capture = 0 }
+            capture && NF { print }
+          ' failure-report.md | while IFS= read -r line; do
+            safe="${line//%/%25}"
+            safe="${safe//$'\n'/%0A}"
+            safe="${safe//$'\r'/%0D}"
+            echo "::error title=Análise da falha::${safe}"
+          done
+
+          MARKER="<!-- ava14-pipeline-failure -->"
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+
+          COMMENT_ID="$(gh api --paginate "repos/${REPO}/issues/${PR}/comments" --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -n 1)"
+
+          if [ -n "${COMMENT_ID}" ]; then
+            jq -n --rawfile body failure-report.md '{body: $body}' | gh api --method PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" --input -
+          else
+            gh pr comment "${PR}" --body-file failure-report.md
+          fi
+          status=$?
+          if [ "${status}" -ne 0 ]; then
+            echo "::warning::A análise da falha não pôde ser publicada no pull request."
+            exit 0
+          fi
