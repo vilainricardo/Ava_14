@@ -4,3 +4,4 @@ __pycache__/
 .env
 *.pyc
 maintenance-report.md
+failure-report.md

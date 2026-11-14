@@ -8,11 +8,13 @@ from app.agents.failure_analyzer import (
     FailureAnalysisError,
     analyze_failure,
     explain_maintenance_warning,
+    explain_pipeline_failure,
 )
 from app.exceptions.error_messages import (
     CURSOR_API_KEY_MISSING_MESSAGE,
     FAILURE_ANALYSIS_INCOMPLETE_MESSAGE,
     FAILURE_ANALYSIS_START_ERROR_MESSAGE,
+    FAILURE_ANALYSIS_UNAVAILABLE_MESSAGE,
     LOG_EMPTY_ERROR_MESSAGE,
     MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE,
 )
@@ -217,3 +219,30 @@ def test_explain_maintenance_warning_survives_agent_failure() -> None:
         result = explain_maintenance_warning("A rota está desatualizada.")
 
     assert result.startswith(MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE)
+
+
+def test_explain_pipeline_failure_sends_log_and_commits() -> None:
+    """A falha e os commits recentes entram no log enviado ao agente."""
+    log = "AssertionError: Falha controlada para demonstrar o diagnóstico."
+
+    with patch(
+        "app.agents.failure_analyzer.analyze_failure",
+        return_value="A asserção foi levantada de propósito.",
+    ) as agent:
+        result = explain_pipeline_failure(log)
+
+    assert result == "A asserção foi levantada de propósito."
+    sent = agent.call_args.args[0]
+    assert log in sent
+    assert "Commits recentes:" in sent
+
+
+def test_explain_pipeline_failure_survives_agent_failure() -> None:
+    """Uma falha do agente vira texto e não esconde o erro original."""
+    with patch(
+        "app.agents.failure_analyzer.analyze_failure",
+        side_effect=FailureAnalysisError("chave ausente"),
+    ):
+        result = explain_pipeline_failure("AssertionError: falha controlada")
+
+    assert result.startswith(FAILURE_ANALYSIS_UNAVAILABLE_MESSAGE)

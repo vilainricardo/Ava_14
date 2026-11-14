@@ -30,3 +30,4 @@ FAILURE_ANALYSIS_INCOMPLETE_MESSAGE: str = (
     "O Cursor Agent não concluiu a análise da falha."
 )
 MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE: str = "A análise do aviso não pôde ser feita."
+FAILURE_ANALYSIS_UNAVAILABLE_MESSAGE: str = "A análise da falha não pôde ser feita."

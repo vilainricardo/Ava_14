@@ -19,6 +19,7 @@ from app.exceptions.error_messages import (
     CURSOR_API_KEY_MISSING_MESSAGE,
     FAILURE_ANALYSIS_INCOMPLETE_MESSAGE,
     FAILURE_ANALYSIS_START_ERROR_MESSAGE,
+    FAILURE_ANALYSIS_UNAVAILABLE_MESSAGE,
     LOG_EMPTY_ERROR_MESSAGE,
     MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE,
 )
@@ -102,6 +103,20 @@ def explain_maintenance_warning(warning: str) -> str:
         return analyze_failure(log)
     except (FailureAnalysisError, ValueError, OSError) as error:
         return f"{MAINTENANCE_ANALYSIS_UNAVAILABLE_MESSAGE} {error}"
+
+
+def explain_pipeline_failure(log: str) -> str:
+    """Pede ao agente uma análise para uma falha da pipeline.
+
+    O log junta a falha e os últimos commits. Se a chave, o Git ou o
+    agente falharem, devolve um texto curto. Quem chamou decide se a
+    falha original continua depois da análise.
+    """
+    full_log: str = f"{log.strip()}\n\nCommits recentes:\n{_recent_commits()}"
+    try:
+        return analyze_failure(full_log)
+    except (FailureAnalysisError, ValueError, OSError) as error:
+        return f"{FAILURE_ANALYSIS_UNAVAILABLE_MESSAGE} {error}"
 
 
 def _recent_commits() -> str:

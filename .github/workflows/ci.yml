@@ -135,10 +135,17 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # A análise da falha lê a mesma chave do job de testes.
+    env:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+
     steps:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # O agente recebe os commits recentes junto com o log da falha.
+          fetch-depth: 5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -151,7 +158,44 @@ jobs:
           pip install -r requirements.txt
 
       # CI_CONTROLLED_FAILURE libera o teste que levanta AssertionError.
+      # O teste pede a análise antes de relançar o erro.
       - name: Run controlled failure
         run: pytest -v tests/test_controlled_failure.py
         env:
           CI_CONTROLLED_FAILURE: "true"
+
+      # O Pytest deixa o job vermelho. Este passo ainda publica a análise.
+      - name: Publish failure analysis on pull request
+        if: failure() && hashFiles('failure-report.md') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          awk '
+            /^### Explicação$/ { capture = 1; next }
+            /^### / { capture = 0 }
+            capture && NF { print }
+          ' failure-report.md | while IFS= read -r line; do
+            safe="${line//%/%25}"
+            safe="${safe//$'\n'/%0A}"
+            safe="${safe//$'\r'/%0D}"
+            echo "::error title=Análise da falha::${safe}"
+          done
+
+          MARKER="<!-- ava14-pipeline-failure -->"
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+
+          COMMENT_ID="$(gh api --paginate "repos/${REPO}/issues/${PR}/comments" --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -n 1)"
+
+          if [ -n "${COMMENT_ID}" ]; then
+            jq -n --rawfile body failure-report.md '{body: $body}' | gh api --method PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" --input -
+          else
+            gh pr comment "${PR}" --body-file failure-report.md
+          fi
+          status=$?
+          if [ "${status}" -ne 0 ]; then
+            echo "::warning::A análise da falha não pôde ser publicada no pull request."
+            exit 0
+          fi
