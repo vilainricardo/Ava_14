@@ -1,6 +1,7 @@
 
 import httpx
 from pydantic import BaseModel, ConfigDict, TypeAdapter
+from app.exceptions.error_messages import INVALID_APP_ID_MESSAGE, STEAM_NEWS_LIST_ERROR_MESSAGE, STEAM_INVALID_RESPONSE_MESSAGE
 
 from app.services.steam_endpoints import GET_GAME_NEWS, STEAM_WEB_API_URL
 
@@ -21,13 +22,20 @@ class SteamNewsResponse(BaseModel):
     appnews: dict[str, object]
 
 
-async def get_game_news(app_id: int) -> list[SteamGameNews]:
+async def get_game_news(
+        app_id: int,
+        transport: httpx.AsyncBaseTransport | None = None,
+        ) -> list[SteamGameNews]:
     if app_id <= 0:
-        raise ValueError("O AppID deve ser maior que zero.")
+        raise ValueError(INVALID_APP_ID_MESSAGE)
 
     url: str = f"{STEAM_WEB_API_URL}{GET_GAME_NEWS}"
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(
+        timeout=15.0, 
+        transport=transport
+        ) as client:
+
         response: httpx.Response = await client.get(
             url,
             params={
@@ -45,12 +53,12 @@ async def get_game_news(app_id: int) -> list[SteamGameNews]:
     news_data: object = payload.get("appnews")
 
     if not isinstance(news_data, dict):
-        raise TypeError("Resposta inválida da Steam.")
+        raise TypeError(STEAM_INVALID_RESPONSE_MESSAGE)
 
     articles_data: object = news_data.get("newsitems")
 
     if not isinstance(articles_data, list):
-        raise TypeError("A Steam não retornou uma lista de notícias.")
+        raise TypeError(STEAM_NEWS_LIST_ERROR_MESSAGE)
 
     return [
         SteamGameNews.model_validate(article)
