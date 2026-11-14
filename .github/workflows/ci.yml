@@ -2,13 +2,8 @@
 name: CI
 
 # Define os eventos que iniciam a execução do workflow.
+# Só um Pull Request dispara a pipeline. Um push direto não executa os jobs.
 on:
-
-  # Executa o pipeline quando um commit é enviado para o GitHub.
-  push:
-    # Limita a execução aos commits enviados para a branch development.
-    #branches:
-      #- development
 
   # Executa o pipeline quando um Pull Request é aberto ou atualizado
   # tendo como destino a branch development.
@@ -74,10 +69,9 @@ jobs:
 
       # Etapa 4b: publica o relatório de manutenção no Pull Request.
       # O ::warning:: sai neste passo, fora do Pytest, para a Actions
-      # criar a anotação no check do PR. Em push não existe PR, então
-      # o passo não roda. Uma falha aqui não derruba o job.
+      # criar a anotação no check do PR. Uma falha aqui não derruba o job.
       - name: Publish maintenance warning on pull request
-        if: github.event_name == 'pull_request' && hashFiles('maintenance-report.md') != ''
+        if: hashFiles('maintenance-report.md') != ''
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
