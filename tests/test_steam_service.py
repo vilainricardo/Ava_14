@@ -1,8 +1,14 @@
-
 import httpx
 import pytest
 
-from app.exceptions.error_messages import INVALID_APP_ID_MESSAGE, STEAM_INVALID_RESPONSE_MESSAGE, STEAM_NEWS_LIST_ERROR_MESSAGE, STEAM_NEWS_NOT_FOUND_MESSAGE, STEAM_NEWS_UNAVAILABLE_MESSAGE, STEAM_REQUEST_ERROR_MESSAGE
+from app.exceptions.error_messages import (
+    INVALID_APP_ID_MESSAGE,
+    STEAM_INVALID_RESPONSE_MESSAGE,
+    STEAM_NEWS_LIST_ERROR_MESSAGE,
+    STEAM_NEWS_NOT_FOUND_MESSAGE,
+    STEAM_NEWS_UNAVAILABLE_MESSAGE,
+    STEAM_REQUEST_ERROR_MESSAGE,
+)
 from app.services.steam_service import get_game_news
 
 
@@ -31,9 +37,7 @@ async def test_get_game_news_returns_articles() -> None:
         )
 
     # Cria um transporte que utiliza nossa resposta simulada.
-    transport: httpx.MockTransport = httpx.MockTransport(
-        mock_steam_response
-    )
+    transport: httpx.MockTransport = httpx.MockTransport(mock_steam_response)
 
     # Executa o serviço usando o transporte simulado.
     articles = await get_game_news(730, transport=transport)
@@ -42,6 +46,7 @@ async def test_get_game_news_returns_articles() -> None:
     assert len(articles) == 1
     assert articles[0].gid == "12345"
     assert articles[0].title == "Notícia de teste"
+
 
 @pytest.mark.anyio
 async def test_get_game_news_rejects_invalid_app_id() -> None:
@@ -63,9 +68,7 @@ async def test_get_game_news_rejects_invalid_response_structure() -> None:
 
     # Cria um transporte HTTP simulado para evitar
     # uma chamada real à API da Steam.
-    transport: httpx.MockTransport = httpx.MockTransport(
-        mock_steam_response
-    )
+    transport: httpx.MockTransport = httpx.MockTransport(mock_steam_response)
 
     # Verifica se o serviço lança a exceção esperada
     # e se utiliza a mensagem centralizada correspondente.
@@ -91,9 +94,7 @@ async def test_get_game_news_rejects_invalid_newsitems() -> None:
 
     # Cria um transporte HTTP simulado para evitar
     # uma chamada real à API da Steam.
-    transport: httpx.MockTransport = httpx.MockTransport(
-        mock_steam_response
-    )
+    transport: httpx.MockTransport = httpx.MockTransport(mock_steam_response)
 
     # Verifica se o serviço lança TypeError quando newsitems
     # não possui o tipo esperado.
@@ -118,9 +119,7 @@ async def test_get_game_news_handles_http_error() -> None:
 
     # Cria um transporte HTTP simulado para evitar
     # uma chamada real à API da Steam.
-    transport: httpx.MockTransport = httpx.MockTransport(
-        mock_steam_response
-    )
+    transport: httpx.MockTransport = httpx.MockTransport(mock_steam_response)
 
     # Verifica se o serviço identifica a resposta HTTP 500
     # e lança a exceção HTTPStatusError esperada.
@@ -129,9 +128,10 @@ async def test_get_game_news_handles_http_error() -> None:
 
     # Confirma que a mensagem personalizada foi utilizada.
     assert str(error.value) == STEAM_NEWS_UNAVAILABLE_MESSAGE
-    
+
     # Confirma que o código de status recebido foi HTTP 500.
     assert error.value.response.status_code == 500
+
 
 @pytest.mark.anyio
 async def test_get_game_news_handles_not_found() -> None:
@@ -151,6 +151,7 @@ async def test_get_game_news_handles_not_found() -> None:
 
     assert str(error.value) == STEAM_NEWS_NOT_FOUND_MESSAGE
     assert error.value.response.status_code == 404
+
 
 @pytest.mark.anyio
 async def test_get_game_news_handles_unexpected_http_error() -> None:

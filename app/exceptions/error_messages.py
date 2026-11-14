@@ -7,11 +7,14 @@ STEAM_NEWS_UNAVAILABLE_MESSAGE: str = (
 )
 
 STEAM_NEWS_NOT_FOUND_MESSAGE: str = (
-    "Não foi possível encontrar o recurso de notícias "
-    "solicitado na Steam."
+    "Não foi possível encontrar o recurso de notícias solicitado na Steam."
 )
 
 STEAM_REQUEST_ERROR_MESSAGE: str = (
-    "Ocorreu um erro ao consultar as notícias na Steam. "
-    "Tente novamente mais tarde."
+    "Ocorreu um erro ao consultar as notícias na Steam. Tente novamente mais tarde."
 )
+
+
+STEAM_API_ERROR_MESSAGE: str = "Erro ao consultar a Steam."
+
+INVALID_APP_ID_TYPE_MESSAGE: str = "O ID do jogo deve ser um número inteiro."
