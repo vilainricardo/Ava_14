@@ -34,6 +34,11 @@ jobs:
     # do ambiente Ubuntu disponibilizado pelo GitHub Actions.
     runs-on: ubuntu-latest
 
+    # O secret do repositório só chega ao Pytest se o job o declarar.
+    # get_cursor_api_key lê CURSOR_API_KEY na hora da análise do aviso.
+    env:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+
     # Lista de etapas executadas dentro do job, na ordem apresentada.
     steps:
 
@@ -63,7 +68,8 @@ jobs:
 
       # Etapa 4: executa os testes automatizados.
       - name: Run tests
-        # Executa o Pytest e apresenta detalhes dos testes realizados.
+        # A falha controlada fica no job controlled_failure. Aqui o
+        # Pytest a encontra sem CI_CONTROLLED_FAILURE e a deixa de lado.
         run: pytest -v
 
       # Etapa 4b: publica o relatório de manutenção no Pull Request.
@@ -126,3 +132,32 @@ jobs:
         # O parâmetro --strict ativa verificações mais rigorosas.
         # app/ indica que a análise será feita no diretório da aplicação.
         run: mypy --strict app/
+
+  # Job separado para a falha proposital. O check fica vermelho e o
+  # job tests continua verde, publicando o aviso de manutenção.
+  controlled_failure:
+
+    name: Falha controlada
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # CI_CONTROLLED_FAILURE libera o teste que levanta AssertionError.
+      - name: Run controlled failure
+        run: pytest -v tests/test_controlled_failure.py
+        env:
+          CI_CONTROLLED_FAILURE: "true"
