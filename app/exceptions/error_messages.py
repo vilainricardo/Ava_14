@@ -20,3 +20,12 @@ STEAM_API_ERROR_MESSAGE: str = "Erro ao consultar a Steam."
 INVALID_APP_ID_TYPE_MESSAGE: str = "O ID do jogo deve ser um número inteiro."
 
 LOG_EMPTY_ERROR_MESSAGE: str = "O log da pipeline não pode estar vazio."
+CURSOR_API_KEY_MISSING_MESSAGE: str = (
+    "A variável de ambiente CURSOR_API_KEY não está definida."
+)
+FAILURE_ANALYSIS_START_ERROR_MESSAGE: str = (
+    "Não foi possível iniciar a análise no Cursor Agent."
+)
+FAILURE_ANALYSIS_INCOMPLETE_MESSAGE: str = (
+    "O Cursor Agent não concluiu a análise da falha."
+)
