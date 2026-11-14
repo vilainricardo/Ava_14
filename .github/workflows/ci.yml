@@ -1,0 +1,76 @@
+# Nome do workflow que aparecerá na aba Actions do GitHub.
+name: CI
+
+# Define os eventos que iniciam a execução do workflow.
+on:
+
+  # Executa o pipeline quando um commit é enviado para o GitHub.
+  push:
+    # Limita a execução aos commits enviados para a branch development.
+    #branches:
+      #- development
+
+  # Executa o pipeline quando um Pull Request é aberto ou atualizado
+  # tendo como destino a branch development.
+  pull_request:
+    branches:
+      - development
+
+# Define os trabalhos (jobs) que serão executados pelo workflow.
+jobs:
+
+  # Identificador interno do job. Escolhemos o nome "tests".
+  tests:
+
+    # Define o sistema operacional da máquina virtual que executará o job.
+    # ubuntu-latest significa que será usada a versão estável mais recente
+    # do ambiente Ubuntu disponibilizado pelo GitHub Actions.
+    runs-on: ubuntu-latest
+
+    # Lista de etapas executadas dentro do job, na ordem apresentada.
+    steps:
+
+      # Etapa 1: obtém o código-fonte do repositório.
+      - name: Checkout repository
+        # A action checkout permite acessar os arquivos do repositório
+        # dentro da máquina virtual.
+        uses: actions/checkout@v4
+
+      # Etapa 2: prepara o ambiente Python.
+      - name: Set up Python
+        # A action setup-python instala e configura a versão do Python.
+        uses: actions/setup-python@v5
+        with:
+          # Versão do Python utilizada para executar o projeto.
+          python-version: "3.12"
+
+      # Etapa 3: instala as dependências do projeto.
+      - name: Install dependencies
+        # O comando run executa comandos de terminal na máquina virtual.
+        run: |
+          # Atualiza o gerenciador de pacotes pip.
+          python -m pip install --upgrade pip
+
+          # Instala os pacotes listados no requirements.txt.
+          pip install -r requirements.txt
+
+      # Etapa 4: executa os testes automatizados.
+      - name: Run tests
+        # Executa o Pytest e apresenta detalhes dos testes realizados.
+        run: pytest -v
+
+      # Etapa 5: verifica a qualidade e a formatação do código.
+      - name: Check code with Ruff
+        run: |
+          # Analisa o código em busca de problemas identificados pelo Ruff.
+          ruff check .
+
+          # Verifica se os arquivos já estão formatados corretamente.
+          # O comando --check apenas verifica, não modifica os arquivos.
+          ruff format --check .
+
+      # Etapa 6: verifica os tipos estáticos do código.
+      - name: Check types with MyPy
+        # O parâmetro --strict ativa verificações mais rigorosas.
+        # app/ indica que a análise será feita no diretório da aplicação.
+        run: mypy --strict app/
