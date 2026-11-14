@@ -67,8 +67,9 @@ jobs:
         run: pytest -v
 
       # Etapa 4b: publica o relatório de manutenção no Pull Request.
-      # Em push não existe PR, então o passo não roda e o ::warning::
-      # continua no log. Uma falha aqui não derruba o job.
+      # O ::warning:: sai neste passo, fora do Pytest, para a Actions
+      # criar a anotação no check do PR. Em push não existe PR, então
+      # o passo não roda. Uma falha aqui não derruba o job.
       - name: Publish maintenance warning on pull request
         if: github.event_name == 'pull_request' && hashFiles('maintenance-report.md') != ''
         continue-on-error: true
@@ -77,6 +78,18 @@ jobs:
         run: |
           # Sem -e, uma falha do gh chega no aviso abaixo em vez de abortar o passo.
           set +e
+          # Cada seção "### Aviso" vira uma anotação. O relatório sem
+          # avisos não imprime nada e o check continua só com o comentário.
+          awk '
+            /^### Aviso$/ { capture = 1; next }
+            /^### / { capture = 0 }
+            capture && NF { print }
+          ' maintenance-report.md | while IFS= read -r line; do
+            safe="${line//%/%25}"
+            safe="${safe//$'\r'/%0D}"
+            echo "::warning title=Manutenção da Steam::${safe}"
+          done
+
           # O marcador identifica o comentário que esta pipeline atualiza.
           MARKER="<!-- ava14-steam-maintenance -->"
           REPO="${{ github.repository }}"
