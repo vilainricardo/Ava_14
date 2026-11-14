@@ -1,7 +1,10 @@
+import httpx
+from fastapi import FastAPI, HTTPException
 
-from fastapi import FastAPI
-
-from app.config import get_steam_api_key
+from app.services.steam_service import (
+    SteamGameNews,
+    get_game_news,
+)
 
 app: FastAPI = FastAPI(
     title="Ava_14",
@@ -24,8 +27,17 @@ def health() -> dict[str, str]:
     }
 
 
-@app.get("/config-check")
-def config_check() -> dict[str, bool]:
-    return {
-        "steam_api_configured": bool(get_steam_api_key())
-    }
+@app.get("/games/{app_id}/news", response_model=list[SteamGameNews])
+async def get_game_news_endpoint(app_id: int) -> list[SteamGameNews]:
+    try:
+        return await get_game_news(app_id)
+    except TypeError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    except httpx.HTTPError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Erro ao consultar a Steam.",
+        ) from error

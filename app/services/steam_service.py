@@ -1,6 +1,6 @@
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 import httpx
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from app.services.steam_endpoints import GET_GAME_NEWS, STEAM_WEB_API_URL
 
@@ -45,12 +45,12 @@ async def get_game_news(app_id: int) -> list[SteamGameNews]:
     news_data: object = payload.get("appnews")
 
     if not isinstance(news_data, dict):
-        raise ValueError("Resposta inválida da Steam.")
+        raise TypeError("Resposta inválida da Steam.")
 
     articles_data: object = news_data.get("newsitems")
 
     if not isinstance(articles_data, list):
-        raise ValueError("A Steam não retornou uma lista de notícias.")
+        raise TypeError("A Steam não retornou uma lista de notícias.")
 
     return [
         SteamGameNews.model_validate(article)
