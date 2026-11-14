@@ -16,6 +16,13 @@ on:
     #branches:
       #- development
 
+# Permissões do GITHUB_TOKEN desta execução.
+# contents: read permite obter o código no checkout.
+# pull-requests: write permite publicar o aviso de manutenção no PR.
+permissions:
+  contents: read
+  pull-requests: write
+
 # Define os trabalhos (jobs) que serão executados pelo workflow.
 jobs:
 
@@ -58,6 +65,38 @@ jobs:
       - name: Run tests
         # Executa o Pytest e apresenta detalhes dos testes realizados.
         run: pytest -v
+
+      # Etapa 4b: publica o relatório de manutenção no Pull Request.
+      # Em push não existe PR, então o passo não roda e o ::warning::
+      # continua no log. Uma falha aqui não derruba o job.
+      - name: Publish maintenance warning on pull request
+        if: github.event_name == 'pull_request' && hashFiles('maintenance-report.md') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Sem -e, uma falha do gh chega no aviso abaixo em vez de abortar o passo.
+          set +e
+          # O marcador identifica o comentário que esta pipeline atualiza.
+          MARKER="<!-- ava14-steam-maintenance -->"
+          REPO="${{ github.repository }}"
+          PR="${{ github.event.pull_request.number }}"
+
+          # Procura um comentário já publicado por uma execução anterior.
+          COMMENT_ID="$(gh api --paginate "repos/${REPO}/issues/${PR}/comments" --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" | head -n 1)"
+
+          if [ -n "${COMMENT_ID}" ]; then
+            # Atualiza o comentário existente com o relatório desta execução.
+            jq -n --rawfile body maintenance-report.md '{body: $body}' | gh api --method PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" --input -
+          else
+            # Cria o primeiro comentário a partir do arquivo gerado pelo Pytest.
+            gh pr comment "${PR}" --body-file maintenance-report.md
+          fi
+          status=$?
+          if [ "${status}" -ne 0 ]; then
+            echo "::warning::O aviso de manutenção não pôde ser publicado no pull request."
+            exit 0
+          fi
 
       # Etapa 5: verifica a qualidade e a formatação do código.
       - name: Check code with Ruff
